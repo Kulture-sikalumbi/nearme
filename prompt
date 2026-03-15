@@ -1,0 +1,39 @@
+Build a 'a near me alert' using Python, Streamlit, and the Bleak library for Bluetooth scanning.
+
+1. Core Concept: Create a proximity detection system that alerts me when 'Marked' devices (like family phones) are nearby using Bluetooth Low Energy (BLE) signal strength (RSSI).
+
+2. Device Management UI:
+
+Create a Sidebar in Streamlit where I can register new devices by entering a MAC Address and a Nickname (e.g., 'Mum', 'Brother').
+
+Save these registered devices to a devices.json file so they persist when the app restarts.
+
+Include a 'Scan' button to show a list of all currently visible BLE devices to help me find MAC addresses easily.
+
+3. Proximity & Alert Logic:
+
+Run an asynchronous background scan every 5 seconds.
+
+Distance Calculation: Use the RSSI value to determine proximity.
+
+Far (RSSI < -80dB): Show status as 'Scanning...'
+
+Near (RSSI -60dB to -80dB): Update UI to 'Device Detected'.
+
+Immediate (RSSI > -60dB): Trigger a Voice Alert and a Chime.
+
+Audio Execution: When a device becomes 'Immediate', use pyttsx3 to say: 'Alert: [Nickname] is near you' and play a notification beep using pygame.mixer.
+
+4. Main Dashboard UI:
+
+Status Cards: Use Streamlit columns to display a card for each marked device. Turn the card Green when the person is 'Immediate'.
+
+Signal Graph: Display a real-time line chart showing the signal strength history for the most recently detected device.
+
+Activity Log: Maintain a table of 'Recent Arrivals' showing the Nickname and the exact timestamp of when they were last detected in the 'Immediate' zone.
+
+5. Code Quality:
+
+Use asyncio for the scanning to prevent the UI from freezing.
+
+Ensure the audio alerts only trigger once per arrival (use a cooldown timer or a boolean flag) so it doesn't repeat the voice alert every 5 seconds while they are still near."

@@ -1,0 +1,5 @@
+streamlit
+bleak
+pygame
+scapy
+edge-tts
