@@ -221,12 +221,12 @@ async def dashboard_page(device: Optional[str] = Query(None)):
     .status-near {{ background:#2a3b5f; }}
     .status-immediate {{ background:#2e7d32; }}
     #map {{
-      height: 320px;
-      max-width: 640px;
+      height: 480px;
+      max-width: 960px;
       margin: 1.5rem auto;
-      border-radius: 12px;
+      border-radius: 16px;
       overflow: hidden;
-      box-shadow: 0 0 12px rgba(0,0,0,0.5);
+      box-shadow: 0 0 18px rgba(0,0,0,0.6);
     }}
   </style>
   <link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\" integrity=\"sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=\" crossorigin=\"\" />
