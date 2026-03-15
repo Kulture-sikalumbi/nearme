@@ -17,7 +17,7 @@ from math import asin, cos, radians, sin, sqrt
 from typing import Dict, Optional
 
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -72,6 +72,16 @@ def classify_distance(dist_m: float) -> str:
 
 
 # ----- API -----
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+  """Redirect the base URL to the tracker with a default device.
+
+  This makes the mobile experience simpler: opening the bare site
+  immediately starts the tracking page for a generic device name.
+  """
+  return RedirectResponse(url="/tracker?device=MyPhone")
 
 
 @app.post("/api/update_location")
