@@ -76,12 +76,13 @@ def classify_distance(dist_m: float) -> str:
 
 @app.get("/", include_in_schema=False)
 async def root():
-  """Redirect the base URL to the tracker with a default device.
+  """Redirect the base URL to the tracker without forcing a device name.
 
-  This makes the mobile experience simpler: opening the bare site
-  immediately starts the tracking page for a generic device name.
+  The tracker page will ask once for a custom device name (and can
+  remember it per browser), so viewers see their own label instead of
+  a hardcoded "MyPhone".
   """
-  return RedirectResponse(url="/tracker?device=MyPhone")
+  return RedirectResponse(url="/tracker")
 
 
 @app.post("/api/update_location")
@@ -326,6 +327,29 @@ async def tracker_page(device: Optional[str] = Query(None)):
       color: #9ca3af;
       line-height: 1.5;
     }}
+    .name-row {{
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }}
+    .name-row input {{
+      flex: 1;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.7);
+      background: rgba(15,23,42,0.95);
+      color: #e5e7eb;
+    }}
+    .name-row button {{
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid #4f46e5;
+      background:#4f46e5;
+      color:#e5e7eb;
+      font-size:0.8rem;
+      cursor:pointer;
+    }}
     @keyframes pulse {{
       0% {{ transform: scale(1); opacity: 1; }}
       100% {{ transform: scale(1.8); opacity: 0; }}
@@ -339,19 +363,24 @@ async def tracker_page(device: Optional[str] = Query(None)):
       <p class=\"subtitle\">Live geofence from your phone</p>
     </header>
 
-    <main class=\"card\">
-      <div class=\"chip-row\">
-        <div class=\"chip\">
+    <main class="card">
+      <div class="chip-row">
+        <div class="chip">
           <span>📱</span>
-          <span id=\"deviceName\"></span>
+          <span id="deviceName"></span>
         </div>
-        <div class=\"live-pill\">
-          <span class=\"dot\"></span>
+        <div class="live-pill">
+          <span class="dot"></span>
           <span>Live</span>
         </div>
       </div>
 
-      <p id=\"status\" class=\"status-text\">Waiting for location permission...</p>
+      <div class="name-row">
+        <input id="deviceInput" placeholder="Name this device (e.g. Sam's Phone)" />
+        <button id="saveDeviceName">Save</button>
+      </div>
+
+      <p id="status" class="status-text">Waiting for location permission...</p>
 
       <div class=\"meta-grid\">
         <div class=\"meta-item\">
@@ -373,8 +402,19 @@ async def tracker_page(device: Optional[str] = Query(None)):
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    let deviceId = {repr(device) if device else 'null'} || params.get('device') || window.prompt('Enter a device name:') || 'device1';
-    document.getElementById('deviceName').innerText = deviceId;
+    let storedDevice = null;
+    try {
+      storedDevice = window.localStorage.getItem('geofence_device_name') || null;
+    } catch (e) {
+      storedDevice = null;
+    }
+    let deviceId = {repr(device) if device else 'null'} || params.get('device') || storedDevice || 'device1';
+    const deviceNameEl = document.getElementById('deviceName');
+    const deviceInputEl = document.getElementById('deviceInput');
+    deviceNameEl.innerText = deviceId;
+    if (deviceInputEl) {
+      deviceInputEl.value = deviceId;
+    }
 
     const statusEl = document.getElementById('status');
     const lastGpsEl = document.getElementById('lastGps');
@@ -384,7 +424,19 @@ async def tracker_page(device: Optional[str] = Query(None)):
       statusEl.textContent = text;
     }}
 
-    if (!('geolocation' in navigator)) {{
+    const saveDeviceBtn = document.getElementById('saveDeviceName');
+    if (saveDeviceBtn && deviceInputEl) {
+      saveDeviceBtn.addEventListener('click', () => {
+        const newId = deviceInputEl.value.trim() || 'device1';
+        deviceId = newId;
+        deviceNameEl.textContent = newId;
+        try {
+          window.localStorage.setItem('geofence_device_name', newId);
+        } catch (e) {}
+      });
+    }
+
+    if (!('geolocation' in navigator)) {
       setStatus('Geolocation is not supported on this device/browser.');
     }} else {{
       setStatus('Requesting location access...');
@@ -429,7 +481,7 @@ async def tracker_page(device: Optional[str] = Query(None)):
         (err) => {{
           setStatus('Location error: ' + err.message);
         }},
-        {{ enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }}
+        {{ enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }}
       );
     }}
   </script>
@@ -665,7 +717,15 @@ async def dashboard_page(device: Optional[str] = Query(None)):
         }}
 
         applyStatus(status);
-        cardDistance.textContent = 'Distance: ' + (dist !== null ? dist + ' m' : '--');
+        if (dist !== null) {
+          if (dist <= 1) {
+            cardDistance.textContent = 'Distance: at home anchor';
+          } else {
+            cardDistance.textContent = 'Distance: ' + dist + ' m';
+          }
+        } else {
+          cardDistance.textContent = 'Distance: -- m';
+        }
         cardUpdated.textContent = 'Last update: ' + updated;
 
         if (lastStatus !== 'immediate' && status === 'immediate') {{
@@ -687,6 +747,9 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       saveConfigBtn.addEventListener('click', async () => {{
         const val = parseFloat(immediateRadiusInput.value);
         if (!isFinite(val) || val <= 0) return;
+        const originalText = saveConfigBtn.textContent;
+        saveConfigBtn.textContent = 'Saving…';
+        saveConfigBtn.disabled = true;
         try {{
           const resp = await fetch('/api/config', {{
             method: 'POST',
@@ -700,12 +763,18 @@ async def dashboard_page(device: Optional[str] = Query(None)):
           }}
         }} catch (err) {{
           // ignore config errors in UI
+        }} finally {{
+          saveConfigBtn.disabled = false;
+          saveConfigBtn.textContent = originalText;
         }}
       }});
     }}
 
     if (setHomeBtn) {{
       setHomeBtn.addEventListener('click', async () => {{
+        const originalText = setHomeBtn.textContent;
+        setHomeBtn.textContent = 'Setting…';
+        setHomeBtn.disabled = true;
         try {{
           const resp = await fetch('/api/set_home_from_device', {{
             method: 'POST',
@@ -723,6 +792,9 @@ async def dashboard_page(device: Optional[str] = Query(None)):
           }}
         }} catch (err) {{
           // ignore errors; user can retry
+        }} finally {{
+          setHomeBtn.disabled = false;
+          setHomeBtn.textContent = originalText;
         }}
       }});
     }}
@@ -733,27 +805,38 @@ async def dashboard_page(device: Optional[str] = Query(None)):
         const data = await resp.json();
         const devices = data.devices || [];
         deviceList.innerHTML = '';
+        let firstBtn = null;
+        let matched = false;
         devices.forEach(id => {{
           const li = document.createElement('li');
           const btn = document.createElement('button');
           btn.textContent = id;
-          btn.style.margin = '2px';
+          if (!firstBtn) firstBtn = btn;
+          if (id === deviceId) {{
+            btn.classList.add('active-device');
+            matched = true;
+          }}
           btn.addEventListener('click', () => {{
             deviceId = id;
             deviceInput.value = id;
             cardTitle.textContent = id;
             lastStatus = 'unknown';
+            document.querySelectorAll('#deviceList button').forEach(b => b.classList.remove('active-device'));
+            btn.classList.add('active-device');
           }});
           li.appendChild(btn);
           deviceList.appendChild(li);
         }});
+        if (!matched && firstBtn) {{
+          firstBtn.click();
+        }}
       }} catch (err) {{
         // ignore listing errors in UI
       }}
     }}
 
     poll();
-    setInterval(poll, 5000);
+    setInterval(poll, 1000);
     refreshDeviceList();
     setInterval(refreshDeviceList, 7000);
   </script>
