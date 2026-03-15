@@ -245,12 +245,12 @@ def main_dashboard(state: ScannerState):
                 st.markdown(
                     f"""
                     <div style='border-radius:8px;padding:12px;margin:4px;\
-                    border:1px solid #ccc;background-color:{status_color if status_color!='gray' else '#f5f5f5'};'>
-                        <h4>{dev.nickname}</h4>
-                        <p><b>Bluetooth MAC:</b> {dev.bt_mac}</p>
-                        <p><b>Wi-Fi MAC:</b> {dev.wifi_mac or 'N/A'}</p>
-                        <p><b>Status:</b> {dev.status}</p>
-                        <p><b>RSSI:</b> {dev.last_rssi if dev.last_rssi is not None else 'N/A'}</p>
+                    border:1px solid #ccc;background-color:{status_color if status_color!='gray' else '#f5f5f5'};color:#000000;'>
+                        <h4 style='color:#000000;'>{dev.nickname}</h4>
+                        <p style='color:#000000;'><b>Bluetooth MAC:</b> {dev.bt_mac}</p>
+                        <p style='color:#000000;'><b>Wi-Fi MAC:</b> {dev.wifi_mac or 'N/A'}</p>
+                        <p style='color:#000000;'><b>Status:</b> {dev.status}</p>
+                        <p style='color:#000000;'><b>RSSI:</b> {dev.last_rssi if dev.last_rssi is not None else 'N/A'}</p>
                     </div>
                     """,
                     unsafe_allow_html=True,

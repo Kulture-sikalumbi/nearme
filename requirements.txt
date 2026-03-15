@@ -3,3 +3,5 @@ bleak
 pygame
 scapy
 edge-tts
+fastapi
+uvicorn

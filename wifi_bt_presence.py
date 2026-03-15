@@ -1,22 +1,16 @@
-"""Concurrent Wi-Fi + Bluetooth presence monitor.
+"""Wi-Fi-only presence monitor with neural voice alerts.
 
-- Wi-Fi scanner: uses scapy.all.arping to detect if a given MAC is on 192.168.1.0/24.
-- Bluetooth scanner: uses bleak to read RSSI for a given BLE MAC.
-- State machine:
-    Far       -> Wi-Fi seen (or default) but no Bluetooth.
-    Near      -> Bluetooth detected, RSSI <= -60 dB.
-    Immediate -> Bluetooth detected, RSSI > -60 dB.
-- Audio: edge-tts speaks an alert only when status changes INTO "Immediate".
+    Far       -> Device not seen on Wi-Fi subnet.
+    Immediate -> Device seen on Wi-Fi subnet.
 
 Note: Scapy ARP scanning usually requires administrator privileges.
 """
 
 import asyncio
+import platform
+import subprocess
 from dataclasses import dataclass
 from typing import Optional
-
-from bleak import BleakScanner
-from scapy.all import arping, conf  # type: ignore
 import edge_tts
 import pygame
 from pathlib import Path
@@ -26,11 +20,8 @@ from pathlib import Path
 
 SUBNET = "192.168.1.0/24"  # Adjust to your LAN
 TARGET_WIFI_MAC = "AA:BB:CC:DD:EE:FF"  # <-- replace with actual Wi-Fi MAC
-TARGET_BT_MAC = "11:22:33:44:55:66"    # <-- replace with actual Bluetooth MAC
 
-IMMEDIATE_THRESHOLD = -60  # dB
 WIFI_SCAN_INTERVAL = 10    # seconds
-BT_SCAN_INTERVAL = 5       # seconds
 
 VOICE_NAME = "en-GB-SoniaNeural"  # or "en-US-GuyNeural"
 ALERT_AUDIO_FILE = Path("presence_alert.mp3")
@@ -42,7 +33,6 @@ ALERT_AUDIO_FILE = Path("presence_alert.mp3")
 @dataclass
 class PresenceState:
     wifi_present: bool = False
-    bt_rssi: Optional[int] = None
     status: str = "Far"
     last_status: str = "Far"
 
@@ -80,15 +70,12 @@ async def speak_immediate_alert() -> None:
 
 
 def compute_status(s: PresenceState) -> str:
-    """Derive status from Wi-Fi presence and BT RSSI."""
-    if s.bt_rssi is not None:
-        if s.bt_rssi > IMMEDIATE_THRESHOLD:
-            return "Immediate"
-        return "Near"
-    # No Bluetooth; treat Wi-Fi presence as Far presence state
-    if s.wifi_present:
-        return "Far"
-    return "Far"
+    """Derive status from Wi-Fi presence only.
+
+    - Far: device not seen on Wi-Fi subnet.
+    - Immediate: device seen on Wi-Fi subnet.
+    """
+    return "Immediate" if s.wifi_present else "Far"
 
 
 async def update_status_and_maybe_alert() -> None:
@@ -96,7 +83,7 @@ async def update_status_and_maybe_alert() -> None:
     async with _state_lock:
         new_status = compute_status(state)
         if new_status != state.status:
-            print(f"[STATE] {state.status} -> {new_status} (Wi-Fi={state.wifi_present}, RSSI={state.bt_rssi})")
+            print(f"[STATE] {state.status} -> {new_status} (Wi-Fi={state.wifi_present})")
             state.last_status = state.status
             state.status = new_status
 
@@ -108,19 +95,31 @@ async def update_status_and_maybe_alert() -> None:
 # ---------------- Scanners ----------------
 
 
-def is_wifi_mac_present(mac: str, subnet: str) -> bool:
-    """Synchronous ARP scan to check if a MAC is on the subnet."""
-    mac = mac.lower()
-    conf.verb = 0
-    try:
-        ans, _ = arping(subnet, timeout=2, verbose=False)
-    except Exception as exc:  # noqa: BLE001
-        print(f"[Wi-Fi] ARP scan failed: {exc}")
-        return False
+def is_wifi_mac_present(mac: str, subnet: str) -> bool:  # subnet kept for signature compatibility
+    """Check if a MAC is in the local ARP table.
 
-    for _, rcv in ans:
-        if getattr(rcv, "hwsrc", "").lower() == mac:
-            return True
+    On Windows this uses `arp -a` so it does not require WinPcap/Npcap.
+    The `subnet` argument is currently unused but retained for compatibility.
+    """
+    mac = mac.lower()
+
+    # Windows implementation via system ARP cache
+    if platform.system().lower() == "windows":
+        try:
+            result = subprocess.run(
+                ["arp", "-a"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            output = result.stdout.lower()
+            return mac in output
+        except Exception as exc:  # noqa: BLE001
+            print(f"[Wi-Fi] arp -a failed: {exc}")
+            return False
+
+    # Fallback: not Windows; simply report False instead of raising
+    # (can be extended later with platform-specific logic)
     return False
 
 
@@ -135,38 +134,17 @@ async def wifi_scanner_loop() -> None:
         await asyncio.sleep(WIFI_SCAN_INTERVAL)
 
 
-async def bt_scanner_loop() -> None:
-    global state
-    while True:
-        try:
-            devices = await BleakScanner.discover(timeout=BT_SCAN_INTERVAL)
-            rssi: Optional[int] = None
-            for d in devices:
-                if d.address.upper() == TARGET_BT_MAC.upper():
-                    rssi = d.rssi
-                    break
-            async with _state_lock:
-                state.bt_rssi = rssi
-            print(f"[BT] {TARGET_BT_MAC} RSSI={rssi}")
-        except Exception as exc:  # noqa: BLE001
-            print(f"[BT] Scan error: {exc}")
-        await update_status_and_maybe_alert()
-        await asyncio.sleep(BT_SCAN_INTERVAL)
-
-
 # ---------------- Main ----------------
 
 
 async def main() -> None:
-    print("Starting Wi-Fi + Bluetooth presence monitor...")
+    print("Starting Wi-Fi presence monitor (no Bluetooth)...")
     print(f" Target Wi-Fi MAC: {TARGET_WIFI_MAC}")
-    print(f" Target BLE MAC : {TARGET_BT_MAC}")
 
     wifi_task = asyncio.create_task(wifi_scanner_loop(), name="wifi_scanner")
-    bt_task = asyncio.create_task(bt_scanner_loop(), name="bt_scanner")
 
     try:
-        await asyncio.gather(wifi_task, bt_task)
+        await asyncio.gather(wifi_task)
     except asyncio.CancelledError:
         pass
 
