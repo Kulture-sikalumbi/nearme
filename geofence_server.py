@@ -697,9 +697,9 @@ async def dashboard_page(device: Optional[str] = Query(None)):
     }}
 
     const map = L.map('map').setView([HOME_LAT, HOME_LON], 14);
-    L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
+    L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO'
+      attribution: '&copy; OpenStreetMap contributors'
     }}).addTo(map);
 
     const homeMarker = L.marker([HOME_LAT, HOME_LON]).addTo(map).bindPopup('Home');
