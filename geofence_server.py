@@ -610,13 +610,14 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 3px 8px;
+      padding: 4px 10px;
       border-radius: 999px;
-      background: rgba(255,255,255,0.95);
-      border: 1px solid rgba(59,130,246,0.8);
+      background: rgba(255,255,255,0.98);
+      border: 2px solid rgba(30,64,175,0.95);
       color: #111827;
-      font-size: 0.8rem;
-      box-shadow: 0 0 8px rgba(148,163,184,0.7);
+      font-size: 0.9rem;
+      font-weight: 600;
+      box-shadow: 0 0 10px rgba(148,163,184,0.9);
     }}
     .device-label-dot {{
       width: 9px;
@@ -737,13 +738,15 @@ async def dashboard_page(device: Optional[str] = Query(None)):
 
     function speak(text) {{
       if (!('speechSynthesis' in window)) return;
-      const utter = new SpeechSynthesisUtterance(text);
-      if (preferredVoice) {{
-        utter.voice = preferredVoice;
+      for (let i = 0; i < 3; i++) {{
+        const utter = new SpeechSynthesisUtterance(text);
+        if (preferredVoice) {{
+          utter.voice = preferredVoice;
+        }}
+        utter.rate = 0.95;
+        utter.pitch = 1.05;
+        window.speechSynthesis.speak(utter);
       }}
-      utter.rate = 0.95;
-      utter.pitch = 1.05;
-      window.speechSynthesis.speak(utter);
     }}
 
     function applyStatus(status) {{
