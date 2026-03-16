@@ -507,30 +507,30 @@ async def dashboard_page(device: Optional[str] = Query(None)):
   <meta charset=\"utf-8\" />
   <title>Geofence Dashboard</title>
   <style>
-    body {{ font-family: system-ui, sans-serif; padding: 1.5rem; background: radial-gradient(circle at top, #020617 0, #020617 40%, #000 100%); color:#f5f5f5; }}
+    body {{ font-family: system-ui, sans-serif; padding: 1.5rem; background: #f9fafb; color:#111827; }}
     .page {{ max-width: 1120px; margin: 0 auto; }}
-    .title {{ font-size: 2rem; margin: 0; background: linear-gradient(120deg,#60a5fa,#a855f7,#ec4899); -webkit-background-clip: text; color: transparent; letter-spacing: 0.03em; }}
-    .subtitle {{ margin: 0.2rem 0 1.2rem; color:#9ca3af; }}
+    .title {{ font-size: 2rem; margin: 0; color: #111827; letter-spacing: 0.02em; }}
+    .subtitle {{ margin: 0.2rem 0 1.2rem; color:#4b5563; }}
     .card {{
       max-width: 480px;
       margin: 1rem auto;
       padding: 1.5rem;
       border-radius: 18px;
-      border: 1px solid rgba(148,163,184,0.4);
-      background: radial-gradient(circle at top,#1f2937,#020617);
+      border: 1px solid #e5e7eb;
+      background: #ffffff;
       text-align: center;
-      box-shadow: 0 20px 45px rgba(0,0,0,0.7);
+      box-shadow: 0 10px 25px rgba(15,23,42,0.08);
     }}
-    .status-far {{ background: radial-gradient(circle at top,#111827,#020617); }}
-    .status-near {{ background: radial-gradient(circle at top,#1d3557,#020617); }}
-    .status-immediate {{ background: radial-gradient(circle at top,#14532d,#020617); }}
+    .status-far {{ background: #ffffff; }}
+    .status-near {{ background: #fef9c3; }}
+    .status-immediate {{ background: #dcfce7; }}
     .settings {{
       max-width: 640px;
       margin: 1rem auto 0.5rem;
       padding: 0.75rem 1rem;
       border-radius: 10px;
-      border: 1px solid #374151;
-      background: #111827;
+      border: 1px solid #e5e7eb;
+      background: #ffffff;
       font-size: 0.9rem;
     }}
     .settings h2 {{
@@ -538,7 +538,7 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       font-size: 0.95rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: #9ca3af;
+      color: #6b7280;
     }}
     .settings-row {{
       display: flex;
@@ -550,16 +550,16 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       width: 110px;
       padding: 0.25rem 0.4rem;
       border-radius: 6px;
-      border: 1px solid #4b5563;
-      background: #020617;
-      color: #e5e7eb;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #111827;
     }}
     .settings-row button {{
       padding: 0.25rem 0.75rem;
       border-radius: 999px;
       border: 1px solid #2563eb;
-      background: #1d4ed8;
-      color: #e5e7eb;
+      background: #2563eb;
+      color: #ffffff;
       cursor: pointer;
       font-size: 0.8rem;
     }}
@@ -571,32 +571,32 @@ async def dashboard_page(device: Optional[str] = Query(None)):
     #deviceInput {{
       padding: 0.3rem 0.5rem;
       border-radius: 999px;
-      border: 1px solid #4b5563;
-      background:#020617;
-      color:#e5e7eb;
+      border: 1px solid #d1d5db;
+      background:#ffffff;
+      color:#111827;
     }}
     #saveDevice {{
       padding: 0.3rem 0.9rem;
       border-radius: 999px;
-      border: 1px solid #6366f1;
-      background:#4f46e5;
-      color:#e5e7eb;
+      border: 1px solid #2563eb;
+      background:#2563eb;
+      color:#ffffff;
       cursor:pointer;
     }}
     #deviceList button {{
       margin: 2px;
       padding: 0.25rem 0.7rem;
       border-radius: 999px;
-      border: 1px solid #374151;
-      background:#020617;
-      color:#e5e7eb;
+      border: 1px solid #e5e7eb;
+      background:#ffffff;
+      color:#111827;
       cursor:pointer;
       font-size:0.8rem;
     }}
     #deviceList button.active-device {{
       border-color:#22c55e;
       background:rgba(34,197,94,0.15);
-      color:#bbf7d0;
+      color:#166534;
     }}
     #map {{
       height: 480px;
@@ -612,18 +612,18 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       gap: 6px;
       padding: 3px 8px;
       border-radius: 999px;
-      background: rgba(15,23,42,0.9);
-      border: 1px solid rgba(96,165,250,0.8);
-      color: #e5e7eb;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid rgba(59,130,246,0.8);
+      color: #111827;
       font-size: 0.8rem;
-      box-shadow: 0 0 12px rgba(59,130,246,0.6);
+      box-shadow: 0 0 8px rgba(148,163,184,0.7);
     }}
     .device-label-dot {{
       width: 9px;
       height: 9px;
       border-radius: 999px;
       background: #22c55e;
-      box-shadow: 0 0 10px rgba(34,197,94,0.9);
+      box-shadow: 0 0 6px rgba(34,197,94,0.8);
     }}
   </style>
   <link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\" integrity=\"sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=\" crossorigin=\"\" />
