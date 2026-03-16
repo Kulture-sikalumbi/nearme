@@ -123,6 +123,12 @@ async def get_state(device: str = Query("default", alias="device_id")):
     return state
 
 
+@app.get("/api/all_states")
+async def get_all_states():
+  """Return state for all known devices (for fleet map view)."""
+  return list(STATES.values())
+
+
 @app.get("/api/devices")
 async def list_devices():
   """Return a list of known device IDs (for the dashboard picker)."""
@@ -700,9 +706,9 @@ async def dashboard_page(device: Optional[str] = Query(None)):
     const homeCircleImmediate = L.circle([HOME_LAT, HOME_LON], {{ radius: HOME_RADIUS_M, color: '#2e7d32', fillOpacity: 0.15 }}).addTo(map);
     const homeCircleNear = L.circle([HOME_LAT, HOME_LON], {{ radius: NEAR_RADIUS_M, color: '#1976d2', fillOpacity: 0.08 }}).addTo(map);
 
-    let deviceMarker = null;
-    let devicePath = null;
-    let pathLatLngs = [];
+    const fleetMarkers = {{}};  // deviceId -> marker
+    const fleetPaths = {{}};    // deviceId -> polyline
+    const fleetHistory = {{}};  // deviceId -> array of [lat, lon]
 
     function makeDeviceIcon(name) {{
       return L.divIcon({{
@@ -711,10 +717,32 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       }});
     }}
 
+    let preferredVoice = null;
+
+    function chooseVoice() {{
+      if (!('speechSynthesis' in window) || !window.speechSynthesis.getVoices) return null;
+      const voices = window.speechSynthesis.getVoices() || [];
+      if (!voices.length) return null;
+      const english = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+      const femaleHint = english.find(v => /female|woman|zira|samantha|linda|zoe/i.test(v.name));
+      return femaleHint || english[0] || voices[0];
+    }}
+
+    if ('speechSynthesis' in window) {{
+      preferredVoice = chooseVoice();
+      window.speechSynthesis.addEventListener('voiceschanged', () => {{
+        preferredVoice = chooseVoice();
+      }});
+    }}
+
     function speak(text) {{
       if (!('speechSynthesis' in window)) return;
       const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = 1.0;
+      if (preferredVoice) {{
+        utter.voice = preferredVoice;
+      }}
+      utter.rate = 0.95;
+      utter.pitch = 1.05;
       window.speechSynthesis.speak(utter);
     }}
 
@@ -728,52 +756,91 @@ async def dashboard_page(device: Optional[str] = Query(None)):
 
     async function poll() {{
       try {{
-        const resp = await fetch('/api/state?device_id=' + encodeURIComponent(deviceId));
-        const data = await resp.json();
-        const status = data.status || 'unknown';
-        const dist = data.distance_m != null ? Math.round(data.distance_m) : null;
-        const updated = data.updated_at || '--';
+        const resp = await fetch('/api/all_states');
+        const allStates = await resp.json();
 
-        if (data.lat != null && data.lon != null) {{
-          const lat = data.lat;
-          const lon = data.lon;
+        // track which devices are present this tick
+        const seen = new Set();
+        let selectedState = null;
 
-          // update marker position + label
-          if (!deviceMarker) {{
-            deviceMarker = L.marker([lat, lon], {{ icon: makeDeviceIcon(deviceId) }}).addTo(map);
+        (allStates || []).forEach(state => {{
+          const id = state.device_id || 'device1';
+          seen.add(id);
+
+          if (id === deviceId) {{
+            selectedState = state;
+          }}
+
+          if (state.lat != null && state.lon != null) {{
+            const lat = state.lat;
+            const lon = state.lon;
+
+            if (!fleetHistory[id]) {{
+              fleetHistory[id] = [];
+            }}
+            const history = fleetHistory[id];
+            history.push([lat, lon]);
+            if (history.length > 50) {{
+              history.shift();
+            }}
+
+            if (!fleetMarkers[id]) {{
+              fleetMarkers[id] = L.marker([lat, lon], {{ icon: makeDeviceIcon(id) }}).addTo(map);
+            }} else {{
+              fleetMarkers[id].setLatLng([lat, lon]);
+              fleetMarkers[id].setIcon(makeDeviceIcon(id));
+            }}
+
+            if (!fleetPaths[id]) {{
+              fleetPaths[id] = L.polyline(history, {{ color: '#60a5fa', weight: 2, opacity: 0.7 }}).addTo(map);
+            }} else {{
+              fleetPaths[id].setLatLngs(history);
+            }}
+          }}
+        }});
+
+        // remove markers/paths for devices that disappeared
+        Object.keys(fleetMarkers).forEach(id => {{
+          if (!seen.has(id)) {{
+            map.removeLayer(fleetMarkers[id]);
+            delete fleetMarkers[id];
+          }}
+        }});
+        Object.keys(fleetPaths).forEach(id => {{
+          if (!seen.has(id)) {{
+            map.removeLayer(fleetPaths[id]);
+            delete fleetPaths[id];
+            delete fleetHistory[id];
+          }}
+        }});
+
+        // update card for selected device
+        if (selectedState) {{
+          const status = selectedState.status || 'unknown';
+          const dist = selectedState.distance_m != null ? Math.round(selectedState.distance_m) : null;
+          const updated = selectedState.updated_at || '--';
+
+          applyStatus(status);
+          if (dist !== null) {{
+            if (dist <= 1) {{
+              cardDistance.textContent = 'Distance: at home anchor';
+            }} else {{
+              cardDistance.textContent = 'Distance: ' + dist + ' m';
+            }}
           }} else {{
-            deviceMarker.setLatLng([lat, lon]);
-            deviceMarker.setIcon(makeDeviceIcon(deviceId));
+            cardDistance.textContent = 'Distance: -- m';
           }}
+          cardUpdated.textContent = 'Last update: ' + updated;
 
-          // update simple movement trail
-          pathLatLngs.push([lat, lon]);
-          if (pathLatLngs.length > 50) {{
-            pathLatLngs.shift();
+          if (lastStatus !== 'immediate' && status === 'immediate') {{
+            speak('Alert: ' + deviceId + ' has arrived home.');
           }}
-          if (!devicePath) {{
-            devicePath = L.polyline(pathLatLngs, {{ color: '#60a5fa', weight: 2, opacity: 0.7 }}).addTo(map);
-          }} else {{
-            devicePath.setLatLngs(pathLatLngs);
-          }}
-        }}
-
-        applyStatus(status);
-        if (dist !== null) {
-          if (dist <= 1) {
-            cardDistance.textContent = 'Distance: at home anchor';
-          } else {
-            cardDistance.textContent = 'Distance: ' + dist + ' m';
-          }
-        } else {
+          lastStatus = status;
+        }} else {{
+          applyStatus('unknown');
           cardDistance.textContent = 'Distance: -- m';
-        }
-        cardUpdated.textContent = 'Last update: ' + updated;
-
-        if (lastStatus !== 'immediate' && status === 'immediate') {{
-          speak('Alert: ' + deviceId + ' has arrived home.');
+          cardUpdated.textContent = 'Last update: --';
         }}
-        lastStatus = status;
       }} catch (err) {{
         cardStatus.textContent = 'Status: error contacting server';
       }}
@@ -783,16 +850,6 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       deviceId = deviceInput.value || 'device1';
       cardTitle.textContent = deviceId;
       lastStatus = 'unknown';
-      // reset marker and trail when switching devices
-      if (deviceMarker) {{
-        map.removeLayer(deviceMarker);
-        deviceMarker = null;
-      }}
-      if (devicePath) {{
-        map.removeLayer(devicePath);
-        devicePath = null;
-        pathLatLngs = [];
-      }}
     }});
 
     if (saveConfigBtn && immediateRadiusInput) {{
@@ -875,15 +932,6 @@ async def dashboard_page(device: Optional[str] = Query(None)):
             lastStatus = 'unknown';
             document.querySelectorAll('#deviceList button').forEach(b => b.classList.remove('active-device'));
             btn.classList.add('active-device');
-            if (deviceMarker) {{
-              map.removeLayer(deviceMarker);
-              deviceMarker = null;
-            }}
-            if (devicePath) {{
-              map.removeLayer(devicePath);
-              devicePath = null;
-              pathLatLngs = [];
-            }}
           }});
           li.appendChild(btn);
           deviceList.appendChild(li);
@@ -897,9 +945,9 @@ async def dashboard_page(device: Optional[str] = Query(None)):
     }}
 
     poll();
-    setInterval(poll, 1000);
+    setInterval(poll, 500);           // status + map ~2x per second
     refreshDeviceList();
-    setInterval(refreshDeviceList, 7000);
+    setInterval(refreshDeviceList, 3000); // fleet list every 3s
   </script>
 </body>
 </html>
