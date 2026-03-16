@@ -408,7 +408,7 @@ async def tracker_page(device: Optional[str] = Query(None)):
     } catch (e) {
       storedDevice = null;
     }
-    let deviceId = {repr(device) if device else 'null'} || params.get('device') || storedDevice || 'device1';
+    let deviceId = params.get('device') || storedDevice || 'device1';
     const deviceNameEl = document.getElementById('deviceName');
     const deviceInputEl = document.getElementById('deviceInput');
     deviceNameEl.innerText = deviceId;
