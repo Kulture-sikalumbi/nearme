@@ -607,24 +607,36 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       box-shadow: 0 0 18px rgba(0,0,0,0.6);
     }}
     .device-label {{
-      display: flex;
+      position: relative;
+      display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       padding: 4px 10px;
       border-radius: 999px;
-      background: rgba(255,255,255,0.98);
-      border: 2px solid rgba(30,64,175,0.95);
-      color: #111827;
+      background: rgba(17,24,39,0.96); /* dark tag */
+      border: 2px solid rgba(59,130,246,0.95);
+      color: #e5e7eb;
       font-size: 0.9rem;
       font-weight: 600;
-      box-shadow: 0 0 10px rgba(148,163,184,0.9);
+      box-shadow: 0 0 14px rgba(15,23,42,0.9);
+      transform: translate(0, -14px); /* lift label above anchor point */
+    }}
+    .device-label::after {{
+      content: '';
+      position: absolute;
+      left: 14px;
+      bottom: -10px;
+      width: 2px;
+      height: 10px;
+      background: rgba(59,130,246,0.9); /* connector line to icon */
+      box-shadow: 0 0 6px rgba(59,130,246,0.9);
     }}
     .device-label-dot {{
       width: 9px;
       height: 9px;
       border-radius: 999px;
       background: #22c55e;
-      box-shadow: 0 0 6px rgba(34,197,94,0.8);
+      box-shadow: 0 0 10px rgba(34,197,94,0.95);
     }}
   </style>
   <link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\" integrity=\"sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=\" crossorigin=\"\" />
@@ -714,7 +726,9 @@ async def dashboard_page(device: Optional[str] = Query(None)):
     function makeDeviceIcon(name) {{
       return L.divIcon({{
         className: 'device-label',
-        html: '<div class="device-label-dot"></div><span>' + String(name || '') + '</span>'
+        html: '<div class="device-label-dot"></div><span>' + String(name || '') + '</span>',
+        iconSize: [140, 32],
+        iconAnchor: [20, 32]  // anchor near the connector so label hovers above point
       }});
     }}
 
