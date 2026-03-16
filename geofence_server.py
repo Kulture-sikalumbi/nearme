@@ -15,6 +15,7 @@ alert when the device becomes Immediate.
 from datetime import datetime
 from math import asin, cos, radians, sin, sqrt
 from typing import Dict, Optional
+import json
 
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -200,8 +201,7 @@ async def set_home_from_device(request: Request):
 @app.get("/tracker", response_class=HTMLResponse)
 async def tracker_page(device: Optional[str] = Query(None)):
     # Mobile-optimised HTML+JS page that sends geolocation updates to the backend.
-    return HTMLResponse(
-        f"""<!DOCTYPE html>
+  html = """<!DOCTYPE html>
 <html>
 <head>
   <meta charset=\"utf-8\" />
@@ -488,14 +488,14 @@ async def tracker_page(device: Optional[str] = Query(None)):
 </body>
 </html>
 """
-    )
+  html = html.replace("{{", "{").replace("}}", "}")
+  return HTMLResponse(html)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(device: Optional[str] = Query(None)):
     # Dashboard that polls backend and speaks when status becomes Immediate.
-    return HTMLResponse(
-        f"""<!DOCTYPE html>
+  html = """<!DOCTYPE html>
 <html>
 <head>
   <meta charset=\"utf-8\" />
@@ -642,7 +642,7 @@ async def dashboard_page(device: Optional[str] = Query(None)):
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    let deviceId = {repr(device) if device else 'null'} || params.get('device') || 'device1';
+    let deviceId = __DEVICE_PLACEHOLDER__ || params.get('device') || 'device1';
 
     const deviceInput = document.getElementById('deviceInput');
     const saveBtn = document.getElementById('saveDevice');
@@ -662,10 +662,10 @@ async def dashboard_page(device: Optional[str] = Query(None)):
     let lastStatus = 'unknown';
 
     // Leaflet map setup
-    let HOME_LAT = {HOME_LAT};
-    let HOME_LON = {HOME_LON};
-    let HOME_RADIUS_M = {HOME_RADIUS_M};
-    let NEAR_RADIUS_M = {NEAR_RADIUS_M};
+    let HOME_LAT = __HOME_LAT__;
+    let HOME_LON = __HOME_LON__;
+    let HOME_RADIUS_M = __HOME_RADIUS_M__;
+    let NEAR_RADIUS_M = __NEAR_RADIUS_M__;
 
     if (immediateRadiusInput) {{
       immediateRadiusInput.value = HOME_RADIUS_M;
@@ -843,4 +843,10 @@ async def dashboard_page(device: Optional[str] = Query(None)):
 </body>
 </html>
 """
-    )
+  html = html.replace("__DEVICE_PLACEHOLDER__", json.dumps(device) if device is not None else "null")
+  html = html.replace("__HOME_LAT__", str(HOME_LAT))
+  html = html.replace("__HOME_LON__", str(HOME_LON))
+  html = html.replace("__HOME_RADIUS_M__", str(HOME_RADIUS_M))
+  html = html.replace("__NEAR_RADIUS_M__", str(NEAR_RADIUS_M))
+  html = html.replace("{{", "{").replace("}}", "}")
+  return HTMLResponse(html)
