@@ -600,6 +600,25 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       overflow: hidden;
       box-shadow: 0 0 18px rgba(0,0,0,0.6);
     }}
+    .device-label {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.9);
+      border: 1px solid rgba(96,165,250,0.8);
+      color: #e5e7eb;
+      font-size: 0.8rem;
+      box-shadow: 0 0 12px rgba(59,130,246,0.6);
+    }}
+    .device-label-dot {{
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 10px rgba(34,197,94,0.9);
+    }}
   </style>
   <link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\" integrity=\"sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=\" crossorigin=\"\" />
   <script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\" integrity=\"sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=\" crossorigin=\"\"></script>
@@ -672,9 +691,9 @@ async def dashboard_page(device: Optional[str] = Query(None)):
     }}
 
     const map = L.map('map').setView([HOME_LAT, HOME_LON], 14);
-    L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+    L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
     }}).addTo(map);
 
     const homeMarker = L.marker([HOME_LAT, HOME_LON]).addTo(map).bindPopup('Home');
@@ -682,6 +701,15 @@ async def dashboard_page(device: Optional[str] = Query(None)):
     const homeCircleNear = L.circle([HOME_LAT, HOME_LON], {{ radius: NEAR_RADIUS_M, color: '#1976d2', fillOpacity: 0.08 }}).addTo(map);
 
     let deviceMarker = null;
+    let devicePath = null;
+    let pathLatLngs = [];
+
+    function makeDeviceIcon(name) {{
+      return L.divIcon({{
+        className: 'device-label',
+        html: '<div class="device-label-dot"></div><span>' + String(name || '') + '</span>'
+      }});
+    }}
 
     function speak(text) {{
       if (!('speechSynthesis' in window)) return;
@@ -709,10 +737,24 @@ async def dashboard_page(device: Optional[str] = Query(None)):
         if (data.lat != null && data.lon != null) {{
           const lat = data.lat;
           const lon = data.lon;
+
+          // update marker position + label
           if (!deviceMarker) {{
-            deviceMarker = L.marker([lat, lon]).addTo(map).bindPopup('Device: ' + deviceId);
+            deviceMarker = L.marker([lat, lon], {{ icon: makeDeviceIcon(deviceId) }}).addTo(map);
           }} else {{
             deviceMarker.setLatLng([lat, lon]);
+            deviceMarker.setIcon(makeDeviceIcon(deviceId));
+          }}
+
+          // update simple movement trail
+          pathLatLngs.push([lat, lon]);
+          if (pathLatLngs.length > 50) {{
+            pathLatLngs.shift();
+          }}
+          if (!devicePath) {{
+            devicePath = L.polyline(pathLatLngs, {{ color: '#60a5fa', weight: 2, opacity: 0.7 }}).addTo(map);
+          }} else {{
+            devicePath.setLatLngs(pathLatLngs);
           }}
         }}
 
@@ -741,6 +783,16 @@ async def dashboard_page(device: Optional[str] = Query(None)):
       deviceId = deviceInput.value || 'device1';
       cardTitle.textContent = deviceId;
       lastStatus = 'unknown';
+      // reset marker and trail when switching devices
+      if (deviceMarker) {{
+        map.removeLayer(deviceMarker);
+        deviceMarker = null;
+      }}
+      if (devicePath) {{
+        map.removeLayer(devicePath);
+        devicePath = null;
+        pathLatLngs = [];
+      }}
     }});
 
     if (saveConfigBtn && immediateRadiusInput) {{
@@ -823,6 +875,15 @@ async def dashboard_page(device: Optional[str] = Query(None)):
             lastStatus = 'unknown';
             document.querySelectorAll('#deviceList button').forEach(b => b.classList.remove('active-device'));
             btn.classList.add('active-device');
+            if (deviceMarker) {{
+              map.removeLayer(deviceMarker);
+              deviceMarker = null;
+            }}
+            if (devicePath) {{
+              map.removeLayer(devicePath);
+              devicePath = null;
+              pathLatLngs = [];
+            }}
           }});
           li.appendChild(btn);
           deviceList.appendChild(li);
